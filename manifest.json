@@ -9,9 +9,9 @@
     "default_title": "vm tree",
     "default_popup": "popup.html"
   },
-  "permissions": ["http://localhost:8090/"],
+  "permissions": ["tabs"],   
   "content_scripts": [{
-    "matches": ["http://localhost:8090/*"],
+    "matches": ["*://*/*"], //https://developer.chrome.com/extensions/match_patterns
     "js":["content_script.js"]
   }]
 }
