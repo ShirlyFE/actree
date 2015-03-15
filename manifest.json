@@ -4,7 +4,7 @@
   "description": "This extension is here to get the avalon vmodel tree of current page",
   "background": {"scripts": ["background.js"]},
   "version": "1.0",
-  "browser_action": {
+  "page_action": {
     "default_icon": "./images/Icon-tree.png",
     "default_title": "vm tree",
     "default_popup": "popup.html"

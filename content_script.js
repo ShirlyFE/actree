@@ -1,28 +1,28 @@
 var doc = document.body.getElementsByTagName('*'),
     docLen = doc.length,
     timer = null,
-    // vmtree = {},
-    vmtree = []
+    vmtree = [],
+    avalonInUse = false
     // str = '<ul>'
 
-
 timer = setTimeout(sendMessage, 1000)
-
 function sendMessage() {
-    var currentDocLen = doc.length,
-        treeStr = '',
-        width = document.documentElement.clientWidth,
-        height = document.documentElement.clientHeight
+    var currentDocLen = doc.length
+        // treeStr = '',
+        // width = document.documentElement.clientWidth,
+        // height = document.documentElement.clientHeight,
         
     clearTimeout(timer)
     timer = null
     if (docLen === currentDocLen) {
+        // 在content script中只可以操作页面dom但是无法访问页面的js
+        // avalonInUse = window.avalon && window.avalon.version && window.avalon.bindingHandlers ? true : false
         anaysisVmodel(document.body, vmtree)
         vmtree = {name: "Root", children: vmtree}
         // updateVmtree(vmtree)
         // treeStr = createTree(vmtree)
         // message最终会转换为json串，在这里给vmtree设置toggle方法毫无意义，所以讲vmtree的信息完善工作放在popup js里去做
-        chrome.runtime.sendMessage({tree: vmtree})
+        chrome.runtime.sendMessage({tree: vmtree, avalon: avalonInUse})
         // chrome.runtime.sendMessage({tree: vmtree, height: height, width: width})
     } else {
         docLen = doc.length
@@ -34,6 +34,9 @@ function anaysisVmodel(parent, vmtree) {
     var vmodel = parent.getAttribute('avalonctrl'),
         subVm = vmtree
     if (vmodel) {
+        if (!avalonInUse) {
+            avalonInUse = true
+        }
         subVm = {name: vmodel, children: []}
         vmtree.push(subVm)
     }
