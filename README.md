@@ -6,4 +6,6 @@
 
 **注意** Root并不是一个真正意义上的vmodel，因为页面上可能vmodel在同一个深度上，而没有所谓的根，为了看着像个tree，所以虚拟了一个Root出来
 
-存在的问题，page action只可以打开一次popup，再打开就会异常，查查这个原因
+## 使用说明
+
+将actree clone到本地，chrome地址栏输入chrome://extensions,将actree目录拖进此页面进行安装

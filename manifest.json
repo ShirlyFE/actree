@@ -11,7 +11,7 @@
   },
   "permissions": ["tabs"],   
   "content_scripts": [{
-    "matches": ["*://*/*"], //https://developer.chrome.com/extensions/match_patterns
+    "matches": ["*://*/*"], 
     "js":["content_script.js"]
   }]
 }
