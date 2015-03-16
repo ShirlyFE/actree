@@ -1,79 +1,79 @@
 // Copyright (c) 2014 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-(function() {
-    var window = this
+(function(global) {
     function Tree(config) {
         util.extends(this, config)
+        this.nodesInfo = {}
         this.diagonal = d3.svg.diagonal().projection(function(d) {
             return [d.y, d.x]
         })
         /*
             children方法用来get or set the children accessor function
         */
-        this.w = d3.layout.tree().children(config.setChildren).size([this.height, this.width])
-        H = H.bind(this)
+        this.tree = d3.layout.tree().children(config.setChildren).size([this.height, this.width])
+        zoomCallback = zoomCallback.bind(this)
         /*
             on用来绑定当scale和translate change时的listeners
         */ 
-        this.m = d3.behavior.zoom().scaleExtent([.1, 3]).on('zoom', H).translate([this.g, this.height/2]).scale(1)
+        this.zoomBehavior = d3.behavior.zoom().scaleExtent([.1, 3]).on('zoom', zoomCallback).translate([this.g, this.height/2]).scale(1)
 
         this.svg = d3.select(this.container).append('svg')
             .attr('width', this.width)
             .attr('height', this.height)
             .attr('class', 'overlay')
-            .call(this.m)
+            .call(this.zoomBehavior)
             .on('dblclick.zoom', null)
             .on('mousewheel.zoom', null)
-        this.y = this.svg.append('g')
+        this.gElem = this.svg.append('g')
         this.treePaint()
         this.controlDirection()
     }
     Tree.prototype.treePaint = treePaint
-    Tree.prototype.pan = function(e) {
-        var m = this.m,
-            t = m.translate(),
-            u = this.u,
-            g = this.g,
-            w = this.w
-        if (typeof e === 'string') {
-            switch(e) {
+    Tree.prototype.pan = function(direction) {
+        var zoomBehavior = this.zoomBehavior,
+            zoomTranslate = zoomBehavior.translate(),
+            translateDistance = this.translateDistance, //变换距离
+            centerX = this.centerX,
+            tree = this.tree
+        if (typeof direction === 'string') {
+            switch(direction) {
                 case "down":
-                    t[1] -= u
+                    zoomTranslate[1] -= translateDistance
                     break;
                 case "up":
-                    t[1] += u
+                    zoomTranslate[1] += translateDistance
                     break;
                 case "right":
-                    t[0] -= u
+                    zoomTranslate[0] -= translateDistance
                     break;
                 case "left":
-                    t[0] += u
+                    zoomTranslate[0] += translateDistance
                     break;
                 case "center":
-                    t = [g, this.height / 2 - w.size()[0] / 2]
+                    zoomTranslate = [centerX, this.height / 2 - tree.size()[0] / 2]
                     break
             } 
         } else {
-            t[0] += e[0]
-            t[1] += e[1]
+            zoomTranslate[0] += direction[0]
+            zoomTranslate[1] += direction[1]
         }
-        m.translate(t)
-        H(true)
+        zoomBehavior.translate(zoomTranslate)
+        zoomCallback(true)
     }
-    Tree.prototype.transformScale = function(e) {
-        var m = this.m,
-            t = m.scale()
-        switch(e) {
+    Tree.prototype.transformScale = function(zoomCase) {
+        var zoomBehavior = this.zoomBehavior,
+            scaleVar = zoomBehavior.scale()
+        switch(zoomCase) {
             case "zoom-in":
-                t += .1
+                scaleVar += .1
                 break
             case "zoom-out":
-                t -= .1
+                scaleVar -= .1
                 break
         }
-        m.scale(t)
-        H(true)
+        zoomBehavior.scale(scaleVar)
+        zoomCallback(true)
     }
     Tree.prototype.controlDirection = function() {
         var that = this,
@@ -101,165 +101,168 @@
                 }
             } while(true)
         })
-    };
-    function nodePaint(f, e) {
+    }
+    function nodePaint(gNodes, nodeData) {
         var that = this,
-            k = this.k,
-            g = this.g,
-            b
-        function A(e, t) {
-            if (!k["Root"])
-                return k["Root"] = {x: that.radius,y: g};
-            if (!e)
+            nodesInfo = this.nodesInfo,
+            centerX = this.centerX,
+            gRemoveNodes,
+            gCollection 
+        // init node coords and save it to nodesInfo object
+        function setNodesInfo(nodeData, parentNode) {
+            if (!nodesInfo["Root"])
+                return nodesInfo["Root"] = {x: that.radius,y: centerX};
+            if (!nodeData)
                 return console.log("Specify item to init coords");
-            if (!t)
-                t = e.parent;
-            if (!k[e.name] && e.origin) {
-                return k[e.name] = k[e.origin]
+            if (!parentNode)
+                parentNode = nodeData.parent;
+            if (!nodesInfo[nodeData.name] && nodeData.origin) {
+                return nodesInfo[nodeData.name] = nodesInfo[nodeData.origin]
             }
-            if (k[t.name]) {
-                k[e.name] = {x: k[t.name].x,y: k[t.name].y}
-            } else if (t.type != "Root")
-                A(e, t.parent);
-            return k[e.name]
+            if (nodesInfo[parentNode.name]) {
+                nodesInfo[nodeData.name] = {x: nodesInfo[parentNode.name].x,y: nodesInfo[parentNode.name].y}
+            } else if (parentNode.type != "Root")
+                setNodesInfo(nodeData, parentNode.parent);
+            return nodesInfo[nodeData.name]
         }
-        function p(e) {
-            var t = null;
-            d3.selectAll("path.link").each(function(i) {
-                if (i.target.name == e.name) {
-                    t = {data: i,pathSvg: d3.select(this)}
+        function getPath(nodeData) {
+            var pathInfo = null;
+            d3.selectAll("path.link").each(function(pathNode) {
+                if (pathNode.target.name == nodeData.name) {
+                    pathInfo = {data: pathNode, pathSvg: d3.select(this)}
                 }
             });
-            return t
+            return pathInfo
         } 
-        function T(e) {
+        function subTreeHandle(nodeData) {
             d3.event.stopPropagation();
-            if (!e._children || !e._children.length) return
-            e.toggle();
-            that.treePaint(e);
-            that.pan([0, that.k[e.name].x - e.x])
+            if (!nodeData._children || !nodeData._children.length) return
+            nodeData.toggle();
+            that.treePaint(nodeData);
+            that.pan([0, that.nodesInfo[nodeData.name].x - nodeData.x])
         }
-        function P (e) {
-            if (!e.children) return 10
+        function positionTextNode (nodeData) {
+            if (!nodeData.children) return 10
             return -30
         }
-        function z(e) {
-            if (!e.children) return 'start'
+        function setNodeType(nodeData) {
+            if (!nodeData.children) return 'start'
             return 'end'
         }
-        h = f.enter().append('g').attr('id', function(e){
-            return e.name
-        }).attr('class', 'node').attr("transform", function(e) {
-            var t = A(e);
-            return "translate(" + t.y + "," + t.x + ")"
+        gCollection = gNodes.enter().append('g').attr('id', function(nodeData){
+            return nodeData.name
+        }).attr('class', 'node').attr("transform", function(nodeData) {
+            var nodeInfo = setNodesInfo(nodeData);
+            return "translate(" + nodeInfo.y + "," + nodeInfo.x + ")"
         })
-        h.on('mouseover', function(e) {
-            var t = e;
+        gCollection.on('mouseover', function(nodeData) {
+            var source = nodeData
             d3.select(this).select('circle').classed('active', true)
             while (true) {
-                var i = p(t);
-                if (!i)
+                var pathInfo = getPath(source);
+                if (!pathInfo)
                     break;
-                i.pathSvg.classed("active", true);
-                t = i.data.source
+                pathInfo.pathSvg.classed("active", true);
+                source = pathInfo.data.source
             }
         }).on('mouseout', function() {
             d3.selectAll('path.link.active').classed('active', false)
             d3.select(this).select('circle').classed('active', false)
-        }).on('click', T)
-        h.append('circle').attr('class', 'circle').attr('r', this.radius)
-        h.append("text").attr("x", P).attr("dy", ".35em").attr("dx", ".70em").attr("class", "nodeText").attr("text-anchor", z).text(function(e) {
-                return e.name
+        }).on('click', subTreeHandle)
+        gCollection.append('circle').attr('class', 'circle').attr('r', this.radius)
+        gCollection.append("text").attr("x", positionTextNode).attr("dy", ".35em").attr("dx", ".70em").attr("class", "nodeText").attr("text-anchor", setNodeType).text(function(nodeData) {
+                return nodeData.name
             })
-        f.transition().duration(this.a).attr('transform', function(e) {
-            that.k[e.name] = {x:e.x, y: e.y}
-            return "translate(" + e.y + "," + e.x + ")"
+        gNodes.transition().duration(this.animateTime).attr('transform', function(nodeData) {
+            that.nodesInfo[nodeData.name] = {x:nodeData.x, y: nodeData.y}
+            return "translate(" + nodeData.y + "," + nodeData.x + ")"
         })
-        f.classed('collapsed', function(e) {
-            return e.expanded == false
+        gNodes.classed('collapsed', function(nodeData) {
+            return nodeData.expanded == false
         })
-        b = f.exit().transition().duration(that.a).attr("transform", function(t) {
-                if (t.parent && util.contains(t.parent.children, t)) {
-                    return "translate(" + e.y + "," + e.x + ")"
+        gRemoveNodes = gNodes.exit().transition().duration(that.animateTime).attr("transform", function(nodeData) {
+                if (nodeData.parent && util.contains(nodeData.parent.children, nodeData)) {
+                    return "translate(" + node.y + "," + node.x + ")"
                 } else {
-                    return "translate(" + t.y + "," + t.x + ")"
+                    return "translate(" + nodeData.y + "," + nodeData.x + ")"
                 }
             }).remove();
-        b.select("circle").attr("r", 0);
-        b.select("text").style("fill-opacity", 0);
+        gRemoveNodes.select("circle").attr("r", 0);
+        gRemoveNodes.select("text").style("fill-opacity", 0);
     }
-    function pathPaint (y, f, u, e) {
+    function pathPaint (gElem, gNodes, initDataInfo, node) {
+    // function pathPaint (y, f, u, e) {
         var that = this,
-            w = that.w,
-            C = w.links(u),
-            D = y.selectAll('path.link').data(C, function(e) {
-                return e.target.name
+            tree = that.tree,
+            pathNodes = tree.links(initDataInfo),
+            pathCollection = gElem.selectAll('path.link').data(pathNodes, function(nodeData) {
+                return nodeData.target.name
             })
 
-        D.enter().insert('path', 'g').attr('class', 'link')
-        .attr('d', function(t) {
-            e = e ? e : that.k["Root"]
-            var i = {x: e.x,y: e.y};
-            return that.diagonal({source: i,target: i})
+        pathCollection.enter().insert('path', 'g').attr('class', 'link')
+        .attr('d', function() {
+            node = node ? node : that.nodesInfo["Root"]
+            var coords = {x: node.x,y: node.y};
+            return that.diagonal({source: coords,target: coords})
         })
-        D.transition().duration(that.a).attr("d", that.diagonal);
-        D.exit().transition().duration(that.a).attr("d", S).remove();
-        function S(t) {
-            e = e ? e : k['Root']
-            if (util.contains(t.source._children, t.target)) {
-                var i = {x: e.x,y: e.y};
-                return that.diagonal({source: i,target: i})
+        pathCollection.transition().duration(that.animateTime).attr("d", that.diagonal);
+        pathCollection.exit().transition().duration(that.animateTime).attr("d", setDAttr).remove();
+        function setDAttr(nodeData) {
+            node = node ? node : nodesInfo['Root']
+            if (util.contains(nodeData.source._children, nodeData.target)) {
+                var coords = {x: node.x,y: node.y};
+                return that.diagonal({source: coords,target: coords})
             } else {
-                return that.diagonal({source: {x: t.source.x,y: t.source.y},target: {x: t.target.x,y: t.target.y}})
+                return that.diagonal({source: {x: nodeData.source.x,y: nodeData.source.y},target: {x: nodeData.target.x,y: nodeData.target.y}})
             }
         }
     }
-    function treePaint(e) {
+    function treePaint(node) {
         var that = this,
-            y = that.y,
-            n = getMaxDeep([1], that.data),
-            s = n * that.l,
-            w = that.w.size([s, that.width]),
-            u = w.nodes(that.data),
-            f = y.selectAll('g.node').data(u, function(e){
-                return e.name
+            gElem = that.gElem,
+            maxDeep = getMaxDeep([1], that.data),
+            treeHeight = maxDeep * that.pathHeight,
+            tree = that.tree.size([treeHeight, that.width]),
+            initDataInfo = tree.nodes(that.data),
+            gNodes = gElem.selectAll('g.node').data(initDataInfo, function(nodeData){
+                return nodeData.name
             }),
-            Root = e ? false : true
-        e = e ? e : that.k['Root']
-        that.w = w
-        u.forEach(function(e) {
-            e.y = e.depth * that.o
+            Root = node ? false : true
+        node = node ? node : that.nodesInfo['Root']
+        that.tree = tree
+        initDataInfo.forEach(function(nodeData) {
+            nodeData.y = nodeData.depth * that.nestInterval
         })
-        nodePaint.bind(that)(f, e)
-        pathPaint.bind(that)(y, f, u, e)
+        nodePaint.bind(that)(gNodes, node)
+        pathPaint.bind(that)(gElem, gNodes, initDataInfo, node)
         if (Root) {
             that.pan('center')
         }
     }
-    function getMaxDeep(n, data) {
-        function getDeep(e, t) {
-            var i = t.children;
-            if (i && i.length > 0) {
-                if (n.length <= e + 1)
-                    n.push(0);
-                n[e + 1] += i.length;
-                i.forEach(function(t) {
-                    getDeep(e + 1, t)
+    function getMaxDeep(deepArr, data) {
+        function getDeep(deep, data) {
+            var children = data.children;
+            if (children && children.length > 0) {
+                if (deepArr.length <= deep + 1)
+                    deepArr.push(0);
+                deepArr[deep + 1] += children.length;
+                children.forEach(function(data) {
+                    getDeep(deep + 1, data)
                 })
             }
         }
         getDeep(0, data)
-        return d3.max(n)
+        return d3.max(deepArr)
     }
-    function H(e) {
-        var i = "translate(" + this.m.translate() + ")scale(" + this.m.scale() + ")";
-        if (e) {
-            this.y.transition().duration(this.a).attr("transform", i)
+    function zoomCallback(selfFire) {
+        var translateStr = "translate(" + this.zoomBehavior.translate() + ")scale(" + this.zoomBehavior.scale() + ")";
+        if (selfFire) {
+            this.gElem.transition().duration(this.animateTime).attr("transform", translateStr)
         } else {
-            this.y.attr("transform", i)
+            this.gElem.attr("transform", translateStr)
         }
     }
-    window.Tree = Tree
+    global.Tree = Tree
 })(this)
 var util = {
     extends: function(source, target) {
@@ -285,8 +288,6 @@ http://stackoverflow.com/questions/8983165/how-can-i-expand-the-popup-window-of-
     
 document.addEventListener('DOMContentLoaded', function() {
     var data = chrome.extension.getBackgroundPage().pageData,
-        // width = data.width,
-        // height = data.height,
         width = 750,
         height = 550,
         treeContainer = document.getElementById('tree')
@@ -300,39 +301,38 @@ document.addEventListener('DOMContentLoaded', function() {
         width: width,
         height: height,
         radius: 10,
-        g: 80,
-        l: 60,
-        s: 0,
-        o: 250,
-        k: {},
-        a: 750,
-        u: 200,
+        centerX: 80,
+        pathHeight: 50,
+        nestInterval: 250,
+        animateTime: 750,
+        translateDistance: 200,
         directionContainer: 'directionContainer',
         zoomClass: 'transformScale',
         navigationClass: 'navigationControl',
         container: '#tree',
-        setChildren: function(e) {
-            if (e.children && !e._children) {
-                e._children = e.children
+        setChildren: function(nodeData) {
+            if (nodeData.children && !nodeData._children) {
+                nodeData._children = nodeData.children
             }
-            if (!e.children && e._children) {
-                e.children = e._children
+            if (!nodeData.children && nodeData._children) {
+                nodeData.children = nodeData._children
             }
-            return e.expanded && e.children
+            return nodeData.expanded && nodeData.children
         }
     }
     var tree = new Tree(config)
     function updateVmtree(data) {
-        if (data.children.length) {
+        var children = data.children
+        if (children && children.length) {
             data.expanded = true
             data.toggle = function() {
                 this.expanded = !this.expanded
             }
-            data.children.forEach(function(item, index) {
+            children.forEach(function(item, index) {
                 updateVmtree(item)
             })
         } else {
-            delete data.children
+            delete children
         }
         return data
     }
