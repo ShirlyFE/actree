@@ -102,7 +102,7 @@
             } while(true)
         })
     }
-    function nodePaint(gNodes, nodeData) {
+    function nodePaint(gNodes, node) {
         var that = this,
             nodesInfo = this.nodesInfo,
             centerX = this.centerX,
@@ -191,7 +191,6 @@
         gRemoveNodes.select("text").style("fill-opacity", 0);
     }
     function pathPaint (gElem, gNodes, initDataInfo, node) {
-    // function pathPaint (y, f, u, e) {
         var that = this,
             tree = that.tree,
             pathNodes = tree.links(initDataInfo),
