@@ -5,6 +5,7 @@
     function Tree(config) {
         util.extends(this, config)
         this.nodesInfo = {}
+        // d3.svg.diagonal是个对角线生成器，只需输入两个顶点坐标，即可生成一条贝塞尔曲线，projection是个点变换器，默认是[d.x, d.y]即保持原坐标不变，如写成[d.y, d.x]即是说对任意输入的顶点都交换x和y坐标
         this.diagonal = d3.svg.diagonal().projection(function(d) {
             return [d.y, d.x]
         })
@@ -193,7 +194,7 @@
     function pathPaint (gElem, gNodes, initDataInfo, node) {
         var that = this,
             tree = that.tree,
-            pathNodes = tree.links(initDataInfo),
+            pathNodes = tree.links(initDataInfo), // links方法将nodes转换的数据转为连接线数据，pathNodes中有连线两端(source、target)的节点信息
             pathCollection = gElem.selectAll('path.link').data(pathNodes, function(nodeData) {
                 return nodeData.target.name
             })
@@ -222,7 +223,7 @@
             maxDeep = getMaxDeep([1], that.data),
             treeHeight = maxDeep * that.pathHeight,
             tree = that.tree.size([treeHeight, that.width]),
-            initDataInfo = tree.nodes(that.data),
+            initDataInfo = tree.nodes(that.data), // nodes方法将数据转换成顶点数据，initDataInfo中有各个节点的子节点(children)、深度(depth)、名称(name)、位置(x、y)
             gNodes = gElem.selectAll('g.node').data(initDataInfo, function(nodeData){
                 return nodeData.name
             }),
